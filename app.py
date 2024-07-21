@@ -38,6 +38,7 @@ def get_image(img_url: str):
         st.error(f"Failed to load image from URL. \nError: {e}")
     return img
 
+# save chat history based on current session key
 def save_chat_history():
     if st.session_state.messages != []:
         if st.session_state.session_key == "New Session":
@@ -58,7 +59,12 @@ def main():
 
     # chat  session sidebar
     st.sidebar.title("Chat Sessions")
-    chat_sessions = ["New Session"] + os.listdir(config["chat_history_path"])
+
+    # list out the json files inside chat_sessions folder
+    dir = os.listdir(config["chat_history_path"])
+    # most recent lai top ma lyauna, reverse gareko....
+    rev_dir = dir[::-1]
+    chat_sessions = ["New Session"] + rev_dir
 
     # Initialize chat history
     if "messages" not in st.session_state:
@@ -67,6 +73,11 @@ def main():
         st.session_state.new_session_key = None
         st.session_state.session_index_tracker = "New Session"
 
+    # Initialize a counter in the session state if it doesnt' exist
+    if 'uploader_reset_counter' not in st.session_state:
+        st.session_state.uploader_reset_counter = 0
+
+    # save the contents of new_session based on the new_session_key
     if st.session_state.session_key == "New Session" and st.session_state.new_session_key != None:
         st.session_state.session_index_tracker = st.session_state.new_session_key
         st.session_state.new_session_key = None
@@ -88,8 +99,11 @@ def main():
     for _ in range(10):
         st.sidebar.text("")
 
-    # upload local image
-    upload_image = st.sidebar.file_uploader("...Or upload a Local Image", type=["png", "jpg", "jpeg"])
+    # Generate a unique key for the file uploader widget using the counter
+    unique_uploader_key = f"file_uploader_{st.session_state.uploader_reset_counter}"
+
+    # upload local image via file uploader widget with a unique key
+    upload_image = st.sidebar.file_uploader("...Or upload a Local Image", type=["png", "jpg", "jpeg"], key=unique_uploader_key)
 
     # save uploaded image to chat history
     # if upload_image:
@@ -161,6 +175,9 @@ def main():
             with st.chat_message("assistant"):
                 response = st.write_stream(response_generator(prompt, True))
                 st.session_state.messages.append({"role": "assistant", "content": response, "type": "upload"})
+
+            # Increment the counter to change the key, effectively resetting the file uploader
+            st.session_state.uploader_reset_counter += 1
 
     save_chat_history()
 
