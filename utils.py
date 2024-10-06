@@ -1,13 +1,16 @@
+import os
 import base64
 from PIL import Image
 from io import BytesIO
 from datetime import datetime
 from pymongo import MongoClient
-from dotenv import connection_string
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def get_db_connection():
     # cloud based server
-    client = MongoClient(connection_string);
+    client = MongoClient(os.getenv("CONNECTION_STRING"))
     db = client["caption_db"]
     return db
 
