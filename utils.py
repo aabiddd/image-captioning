@@ -39,7 +39,7 @@ def get_all_sessions():
     collection = db["caption_db"]
 
     # sort by timestamp field in descending order to get most recent sessions at t op
-    sessions = collection.find({}, {"session_key": 1, "_id": 0}).sort("timestamp", -1) # Fetch only session keys
+    sessions = collection.find({}, {"session_key": 1, "_id": 0}).sort("session_key", -1) # Fetch only session keys
     session_list = [session["session_key"] for session in sessions]
     return session_list
 
