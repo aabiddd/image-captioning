@@ -80,14 +80,13 @@ def main():
 
     # display chat sessions inside the sidebar
     with st.sidebar:
-        selectbox = st.selectbox("Select Chat Session", chat_sessions, key="session_key", index=index, on_change=track_index)
+        selected_session = st.selectbox("Select Chat Session", chat_sessions, key="session_key", index=index, on_change=track_index)
 
     # load chat history when old session is selected
     if st.session_state.session_key != "New Session":
         st.session_state.messages = utils.load_chat_history_mongo(st.session_state.session_key)
     else:
         st.session_state.messages = []
-
 
     # Padding
     for _ in range(15):
