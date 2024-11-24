@@ -2,7 +2,7 @@ import pymongo
 from datetime import datetime
 
 connection_string = "mongodb+srv://user:user123@cluster0.okftc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-client = pymongo.MongoClient(connection_string, ssl_cert_reqs='CERT_NONE')
+client = pymongo.MongoClient(connection_string)
 db = client.test  # Test the connection
 print("Connected to MongoDB Atlas ✅")
 
