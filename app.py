@@ -1,5 +1,5 @@
-# streamlit run app.py --server.enableXsrfProtection false
 import os
+import db
 import time
 import utils
 import requests
@@ -39,25 +39,28 @@ def save_chat_history():
         if st.session_state.session_key == "New Session":
             # generate new session key based on current time
             st.session_state.new_session_key = utils.get_timestamp()
-            utils.save_chat_history_mongo(st.session_state.new_session_key, st.session_state.messages)
+            db.save_chat_history_db(st.session_state.new_session_key, st.session_state.messages)
         else:
-            utils.save_chat_history_mongo(st.session_state.session_key, st.session_state.messages)
+            db.save_chat_history_db(st.session_state.session_key, st.session_state.messages)
         
 def track_index():
     st.session_state.session_index_tracker = st.session_state.session_key
 
 def main():
-    # title
-    st.title("ICRT")
+    st.set_page_config(page_title='ICRT', page_icon='✨')
+    
+    st.title("ICRT")  # Title
+    st.markdown('<style>div.block-container{padding-top:2rem;}h1#icrt{padding-bottom:0rem;}</style>', unsafe_allow_html=True)
     st.markdown('''
         ### An Integrative Approach To Image Captioning with ResNet and Transformers
     ''')
 
-    # chat  session sidebar
+    # chat session sidebar
     st.sidebar.title("Chat Sessions")
 
     #  List of sessions that will be displayed in the selectbox
-    chat_sessions = ["New Session"] + utils.get_all_sessions()
+    print(db.get_all_sessions())
+    chat_sessions = ["New Session"] + db.get_all_sessions()
 
     # Initialize chat history
     if "messages" not in st.session_state:
@@ -72,6 +75,7 @@ def main():
 
     # save the contents of new_session based on the new_session_key
     if st.session_state.session_key == "New Session" and st.session_state.new_session_key != None:
+        st.session_state.session_key = st.session_state.new_session_key
         st.session_state.session_index_tracker = st.session_state.new_session_key
         st.session_state.new_session_key = None
 
@@ -80,16 +84,17 @@ def main():
 
     # display chat sessions inside the sidebar
     with st.sidebar:
-        selected_session = st.selectbox("Select Chat Session", chat_sessions, key="session_key", index=index, on_change=track_index)
+        selectbox = st.selectbox("Select Chat Session", chat_sessions, key="session_key", index=index, on_change=track_index)
 
     # load chat history when old session is selected
     if st.session_state.session_key != "New Session":
-        st.session_state.messages = utils.load_chat_history_mongo(st.session_state.session_key)
+        st.session_state.messages = db.load_chat_history_db(st.session_state.session_key)
     else:
         st.session_state.messages = []
 
+
     # Padding
-    for _ in range(15):
+    for _ in range(12):
         st.sidebar.text("")
 
     # Generate a unique key for the file uploader widget using the counter

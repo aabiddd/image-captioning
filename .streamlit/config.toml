@@ -1,3 +1,7 @@
 [theme]
 base = "dark"
 font = "monospace"
+
+[server]
+port = 6969
+enableXsrfProtection = false
