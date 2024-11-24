@@ -1,10 +1,10 @@
 import pymongo
 from datetime import datetime
 
-connection_string = "mongodb://localhost:27017/ImageCaptionsDB"
+connection_string = "mongodb+srv://user:user123@cluster0.okftc.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = pymongo.MongoClient(connection_string)
 
-db = client.get_database()
+db = client["ImageCaptioningDB"]
 collection = db.get_collection('chat_history')
 # print(db['chat_history'])
 
