@@ -1,4 +1,4 @@
-import os
+# import os
 import db
 import time
 import utils
@@ -6,12 +6,13 @@ import requests
 from PIL import Image
 import streamlit as st
 from io import BytesIO
+from generate_captions import *
 
 # Streamed response emulator
-def response_generator(prompt: str, validness: bool):
+def response_generator(img: Image.Image, validness: bool):
     # if given prompt is a valid URL
     if validness:
-        response = "This is some caption, that will get replaced by the model." 
+        response = generate_caption(img) 
         for word in response.split():
             yield word + " "
             time.sleep(0.1)
@@ -26,7 +27,8 @@ def response_generator(prompt: str, validness: bool):
 def get_image(img_url: str):
     img = None        
     try:
-        response = requests.get(img_url)
+        headers = {"User-Agent": "Mozilla/5.0"}  # Spoof a browser request
+        response = requests.get(img_url, headers=headers)
         img = Image.open(BytesIO(response.content))
     except Exception as e:
         st.error(f"Failed to load image from URL. \nError: {e}")
@@ -144,7 +146,7 @@ def main():
 
                 # Display assistant response in chat message container
                 with st.chat_message("assistant"):
-                    response = st.write_stream(response_generator(prompt, True))
+                    response = st.write_stream(response_generator(img, True))
                 # Add assistant response to chat history
                 st.session_state.messages.append({"role": "assistant", "content": response, "type":"url"})
 
@@ -155,7 +157,7 @@ def main():
 
                 # Display assistant response in chat message container
                 with st.chat_message("assistant"):
-                    response = st.write_stream(response_generator(prompt, False))
+                    response = st.write_stream(response_generator(img, False))
                 # Add assistant response to chat history
                 st.session_state.messages.append({"role": "assistant", "content": response, "type": "url"})
 
@@ -170,7 +172,7 @@ def main():
                 st.session_state.messages.append({"role": "user", "content": img_base64, "type": "upload"})
 
             with st.chat_message("assistant"):
-                response = st.write_stream(response_generator(prompt, True))
+                response = st.write_stream(response_generator(img, True))
                 st.session_state.messages.append({"role": "assistant", "content": response, "type": "upload"})
 
             # the image date gets saved into this variable, due to which the image gets shown on any other sessions (including new session)
