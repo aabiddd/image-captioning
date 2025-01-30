@@ -1,259 +1,186 @@
-# problems:
-# saving new chat does not seem tto work properly
-# something related to session_state.session_key is going wrong
-
-# test.py ko sabai kura run vayooooo probably because of from test import *
-import os
-import logging
-from typing import Optional, Tuple
+# import os
+import db
 import time
+import utils
 import requests
 from PIL import Image
 import streamlit as st
 from io import BytesIO
-from config import Config
-from db import db_manager
-import utils
-import caption_generator
-from resnet import *
-from transformer import *
+from generate_captions import *
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+# Streamed response emulator
+def response_generator(img: Image.Image, validness: bool):
+    # if given prompt is a valid URL
+    if validness:
+        response = generate_caption(img) 
+        for word in response.split():
+            yield word + " "
+            time.sleep(0.1)
 
-class ResponseGenerator:
-    @staticmethod
-    def stream_response(img: Optional[Image.Image], valid: bool):
-        """Generate streaming response with improved error handling."""
-        try:
-            if valid and img:
-                response = caption_generator.generate_caption(img)
-                for i, word in enumerate(response):
-                    yield ResponseGenerator._format_word(word, i, len(response))
-                    time.sleep(0.1)
-            else:
-                error_msg = "Given URL is Invalid. Please Input a Valid URL."
-                for word in error_msg.split():
-                    yield word + " "
-                    time.sleep(0.1)
-        except Exception as e:
-            logger.error(f"Response generation error: {str(e)}")
-            yield "An error occurred while generating the caption. Please try again."
+    else:
+        response = "Given URL is Invalid. Please Input a Valid URL." 
+        for word in response.split():
+            yield word + " "
+            time.sleep(0.1)
 
-    @staticmethod
-    def _format_word(word: str, index: int, total_length: int) -> str:
-        """Format words in the response."""
-        if index == 0:
-            return word.capitalize() + " "
-        elif index == total_length - 1:
-            return word + "."
-        return word + " "
+# get image via requests
+def get_image(img_url: str):
+    img = None        
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}  # Spoof a browser request
+        response = requests.get(img_url, headers=headers)
+        img = Image.open(BytesIO(response.content))
+    except Exception as e:
+        st.error(f"Failed to load image from URL. \nError: {e}")
+    return img
 
-class ImageHandler:
-    @staticmethod
-    def get_image(img_url: str) -> Tuple[Optional[Image.Image], Optional[str]]:
-        """Get image from URL with improved error handling."""
-        try:
-            response = requests.get(img_url, timeout=10)
-            response.raise_for_status()
-            return Image.open(BytesIO(response.content)), None
-        except requests.RequestException as e:
-            logger.error(f"Failed to fetch image: {str(e)}")
-            return None, f"Failed to load image: {str(e)}"
-        except Exception as e:
-            logger.error(f"Image processing error: {str(e)}")
-            return None, f"Failed to process image: {str(e)}"
-
-class SessionManager:
-    @staticmethod
-    def initialize_session_state():
-        """Initialize or reset session state variables."""
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-            st.session_state.session_key = "New Session"
-            st.session_state.new_session_key = None
-            st.session_state.session_index_tracker = "New Session"
-            st.session_state.uploader_reset_counter = 0
-
-    @staticmethod
-    def save_chat_history():
-        """Save chat history with error handling."""
-        if st.session_state.messages:
-            session_key = (
-                st.session_state.new_session_key
-                if st.session_state.session_key == "New Session"
-                else st.session_state.session_key
-            )
-
-            logger.debug(f"Saving chat history for session_key: {session_key}")
-            logger.debug(f"Messages to save: {st.session_state.messages}")
-
-            success = db_manager.save_chat_history(session_key, st.session_state.messages)
-
-            if not success:
-                logger.error("Failed to save chat history.")
-                st.error("Failed to save chat history. Please try again.")
-            else:
-                logger.info("Chat history saved successfully.")
-            # if st.session_state.session_key == "New Session":
-            #     st.session_state.new_session_key = utils.get_timestamp()
-            #     success = db_manager.save_chat_history(
-            #         st.session_state.new_session_key, 
-            #         st.session_state.messages
-            #     )
-            # else:
-            #     success = db_manager.save_chat_history(
-            #         st.session_state.session_key, 
-            #         st.session_state.messages
-            #     )
-            
-            # if not success:
-            #     st.error("Failed to save chat history. Please try again.")
+# save chat history based on current session key
+def save_chat_history():
+    # Check if there are any messages to save
+    if st.session_state.messages != []:
+        if st.session_state.session_key == "New Session":
+            # generate new session key based on current time
+            st.session_state.new_session_key = utils.get_timestamp()
+            db.save_chat_history_db(st.session_state.new_session_key, st.session_state.messages)
+        else:
+            db.save_chat_history_db(st.session_state.session_key, st.session_state.messages)
+        
+def track_index():
+    st.session_state.session_index_tracker = st.session_state.session_key
 
 def main():
-    # Configure page
-    st.set_page_config(
-        page_title=Config.APP_TITLE,
-        page_icon='✨',
-        layout="wide"
-    )
+    st.set_page_config(page_title='ICRT', page_icon='✨')
     
-    # Initialize session state
-    SessionManager.initialize_session_state()
-    
-    # Setup UI
-    st.title(Config.APP_TITLE)
-    st.markdown(
-        f'### {Config.APP_DESCRIPTION}',
-        unsafe_allow_html=False
-    )
+    st.title("ICRT")  # Title
+    st.markdown('<style>div.block-container{padding-top:2rem;}h1#icrt{padding-bottom:0rem;}</style>', unsafe_allow_html=True)
+    st.markdown('''
+        ### An Integrative Approach To Image Captioning with ResNet and Transformers
+    ''')
 
-    # Sidebar setup
+    # chat session sidebar
+    st.sidebar.title("Chat Sessions")
+
+    #  List of sessions that will be displayed in the selectbox
+    print(db.get_all_sessions())
+    chat_sessions = ["New Session"] + db.get_all_sessions()
+
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = [] # empty history
+        st.session_state.session_key = "New Session"
+        st.session_state.new_session_key = None
+        st.session_state.session_index_tracker = "New Session"
+
+    # Initialize a counter in the session state if it doesnt' exist
+    if 'uploader_reset_counter' not in st.session_state:
+        st.session_state.uploader_reset_counter = 0
+
+    # save the contents of new_session based on the new_session_key
+    if st.session_state.session_key == "New Session" and st.session_state.new_session_key != None:
+        st.session_state.session_key = st.session_state.new_session_key
+        st.session_state.session_index_tracker = st.session_state.new_session_key
+        st.session_state.new_session_key = None
+
+    # track the index of current session
+    index = chat_sessions.index(st.session_state.session_index_tracker)
+
+    # display chat sessions inside the sidebar
     with st.sidebar:
-        st.title("Chat Sessions")
-        
-        # Get cached sessions
-        chat_sessions = ["New Session"] + db_manager.get_all_sessions()
-        
-        # Session selection
-        st.selectbox(
-            "Select Chat Session",
-            chat_sessions,
-            key="session_key",
-            index=chat_sessions.index(st.session_state.session_index_tracker),
-            on_change=lambda: setattr(st.session_state, 'session_index_tracker', st.session_state.session_key)
-        )
+        selectbox = st.selectbox("Select Chat Session", chat_sessions, key="session_key", index=index, on_change=track_index)
 
-        # File uploader with progress
-        st.file_uploader(
-            "...Or upload a Local Image",
-            type=Config.ALLOWED_IMAGE_TYPES,
-            key=f"file_uploader_{st.session_state.uploader_reset_counter}"
-        )
-
-    # Load or clear chat history
+    # load chat history when old session is selected
     if st.session_state.session_key != "New Session":
-        st.session_state.messages = db_manager.load_chat_history(st.session_state.session_key)
+        st.session_state.messages = db.load_chat_history_db(st.session_state.session_key)
     else:
         st.session_state.messages = []
 
-    # Display chat history
+
+    # Padding
+    for _ in range(12):
+        st.sidebar.text("")
+
+    # Generate a unique key for the file uploader widget using the counter
+    unique_uploader_key = f"file_uploader_{st.session_state.uploader_reset_counter}"
+
+    # upload local image via file uploader widget with a unique key
+    upload_image = st.sidebar.file_uploader("...Or upload a Local Image", type=["png", "jpg", "jpeg"], key=unique_uploader_key)
+
+    # Display chat messages from history on app rerun
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
+            # user message (images)
             if message["role"] == "user":
-                _display_user_message(message)
+                # url-based
+                if message["type"] == "url":
+                    img = get_image(message["content"])
+                    if img:
+                        st.image(img, width=400)
+                    else:
+                        # if invalid URL, display the url user entered
+                        st.markdown(message["content"])
+                
+                # upload-based
+                elif message["type"] == "upload":
+                    img = utils.base64_to_image(message["content"])
+                    st.image(img, width=400)
+            
+            # display bot responses
             else:
                 st.markdown(message["content"])
 
-    # Handle user input
-    if prompt := st.chat_input("Input Image URL"):
-        _handle_url_input(prompt)
-    elif upload_image := st.session_state.get(f"file_uploader_{st.session_state.uploader_reset_counter}"):
-        _handle_file_upload(upload_image)
+    # Accept user input
+    if (prompt := st.chat_input("Input Image URL")) or upload_image:
+        # if prompt was given
+        if prompt:
+            # Add user message to chat history
+            st.session_state.messages.append({"role": "user", "content": prompt, "type":"url"})
 
-    # Save chat history
-    # print(st.session_state.messages)
-    SessionManager.save_chat_history()
+            # get image based on user's input url
+            img = get_image(prompt)
 
-def _display_user_message(message):
-    """Display user message based on type."""
-    if message["type"] == "url":
-        img, error = ImageHandler.get_image(message["content"])
-        if img:
-            st.image(img, width=Config.IMAGE_DISPLAY_WIDTH)
-        else:
-            st.markdown(message["content"])
-            if error:
-                st.error(error)
-    elif message["type"] == "upload":
-        img, error = utils.base64_to_image(message["content"])
-        if img:
-            st.image(img, width=Config.IMAGE_DISPLAY_WIDTH)
-        elif error:
-            st.error(error)
+            # when valid image-url is given, img will not be None, else None
+            if img:
+                # Display user input image in chat message container
+                with st.chat_message("user"):
+                    st.image(img, width=400)
 
-def _handle_url_input(prompt):
-    st.session_state.messages.append({
-        "role": "user",
-        "content": prompt,
-        "type": "url"
-    })
+                # Display assistant response in chat message container
+                with st.chat_message("assistant"):
+                    response = st.write_stream(response_generator(img, True))
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response, "type":"url"})
 
-    img, error = ImageHandler.get_image(prompt)
-    
-    with st.chat_message("user"):
-        if img:
-            st.image(img, width=Config.IMAGE_DISPLAY_WIDTH)
-        else:
-            st.markdown(prompt)
-            if error:
-                st.error(error)
+            else:
+                # Display user message in chat message container
+                with st.chat_message("user"):
+                    st.markdown(prompt)
 
-    with st.chat_message("assistant"):
-        message_placeholder = st.empty()
-        full_response = ""
-        
-        # Collect the streamed response
-        for chunk in ResponseGenerator.stream_response(img, img is not None):
-            full_response += chunk
-            message_placeholder.markdown(full_response + "▌")
-        message_placeholder.markdown(full_response)
+                # Display assistant response in chat message container
+                with st.chat_message("assistant"):
+                    response = st.write_stream(response_generator(img, False))
+                # Add assistant response to chat history
+                st.session_state.messages.append({"role": "assistant", "content": response, "type": "url"})
 
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": full_response,
-            "type": "url"
-        })
+        # else if, image was "uploaded"
+        elif upload_image:
+            img = Image.open(upload_image)
+            # decode the image into string, so that it becomes JSON serializable
+            img_base64 = utils.image_to_base64(img)
 
-def _handle_file_upload(upload_image):
-    """Handle uploaded image file from user."""
-    # Convert uploaded file to base64 for storage
-    base64_image = utils.image_to_base64(upload_image)
-    
-    st.session_state.messages.append({
-        "role": "user",
-        "type": "upload",
-        "content": base64_image
-    })
+            with st.chat_message("user"):
+                st.image(img, width=400)
+                st.session_state.messages.append({"role": "user", "content": img_base64, "type": "upload"})
 
-    with st.chat_message("user"):
-        img = Image.open(upload_image)
-        st.image(img, width=Config.IMAGE_DISPLAY_WIDTH)
+            with st.chat_message("assistant"):
+                response = st.write_stream(response_generator(img, True))
+                st.session_state.messages.append({"role": "assistant", "content": response, "type": "upload"})
 
-    with st.chat_message("assistant"):
-        response = st.write_stream(
-            ResponseGenerator.stream_response(img, True)
-        )
+            # the image date gets saved into this variable, due to which the image gets shown on any other sessions (including new session)
+            # Increment the counter to change the key, effectively resetting the file uploader
+            st.session_state.uploader_reset_counter += 1
 
-        st.session_state.messages.append({
-            "role": "assistant",
-            "content": response,
-            "type": "upload"
-        })
+    # save chat history before each app rerun
+    save_chat_history()
 
 if __name__ == "__main__":
     main()
