@@ -12,8 +12,13 @@ def response_generator(img: Image.Image, validness: bool):
     # if given prompt is a valid URL
     if validness:
         response = generate_caption(img) 
-        for word in response.split():
-            yield word + " "
+        for i, word in enumerate(response):
+            if i == 0:
+                yield word.capitalize() + " "
+            elif i == len(response)-1:
+                yield word + "."
+            else:
+                yield word + " "
             time.sleep(0.1)
 
     else:
