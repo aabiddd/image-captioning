@@ -1,4 +1,3 @@
-# import os
 import db
 import time
 import utils

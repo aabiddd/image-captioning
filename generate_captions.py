@@ -1,12 +1,8 @@
-import os, time
 import torch
 import torch.nn.functional as F
 import numpy as np
 import json
 import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
-import matplotlib.cm as cm
-import skimage.transform
 from PIL import Image
 import torchvision
 from torch import nn
