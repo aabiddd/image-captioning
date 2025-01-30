@@ -1,8 +1,12 @@
+import os, time
 import torch
 import torch.nn.functional as F
 import numpy as np
 import json
 import torchvision.transforms as transforms
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import skimage.transform
 from PIL import Image
 import torchvision
 from torch import nn
@@ -532,7 +536,7 @@ def generate_caption(img):
     words = [rev_word_map[ind] for ind in seq]
     words = words[1:-1]
 
-    return " ".join(words)
+    return words
 
 
 if __name__ == '__main__':
