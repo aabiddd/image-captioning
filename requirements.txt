@@ -3,4 +3,4 @@ pymongo==4.10.1
 streamlit==1.38.0
 torch
 torchvision
-matplotlib.pyplot
+matplotlib==3.7.1
