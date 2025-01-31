@@ -222,7 +222,7 @@ class Decoder(nn.Module):
         batch_size = encoder_out.size(0)
         # Sort input data by decreasing lengths.
         caption_lengths, sort_ind = caption_lengths.squeeze(1).sort(dim=0, descending=True)
-        sort_ind = sort_ind.to(torch.device('cuda'))
+        sort_ind = sort_ind.to(device)
         encoder_out = encoder_out[sort_ind]
         encoded_captions = encoded_captions[sort_ind]
         # We won't decode at the <end> position, since we've finished generating as soon as we generate <end>
